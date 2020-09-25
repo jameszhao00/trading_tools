@@ -13,18 +13,19 @@ class Holding:
 @dataclass()
 class Portfolio:
     # Leverage in percent (e.g. 130 = 1.3x leverage).
-    leverage: float
+    long_leverage: float
     holdings: List[Holding]
+    short_leverage: float = 0
 
 
 def verify_portfolio(p: Portfolio):
     """
-    >>> verify_portfolio(Portfolio(leverage=1, holdings=[Holding("SPY", 1), Holding("SPY", 1)]))
+    >>> verify_portfolio(Portfolio(long_leverage=1, holdings=[Holding("SPY", 1), Holding("SPY", 1)]))
     Traceback (most recent call last):
       ...
     Exception: Found duplicate tickers: ['SPY']
 
-    >>> verify_portfolio(Portfolio(leverage=1, holdings=[Holding("SPY", 0)]))
+    >>> verify_portfolio(Portfolio(long_leverage=1, holdings=[Holding("SPY", 0)]))
     Traceback (most recent call last):
       ...
     Exception: Found holdings with zero weight: [Holding(ticker='SPY', weight=0)]

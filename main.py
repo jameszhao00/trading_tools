@@ -28,26 +28,34 @@ def get_net_liquidation_value(ib: IB, account_number: str) -> float:
 def calculate_target_positions(net_liquidation_value: float,
                                ticker_prices: Dict[str, float],
                                target_holdings: List[Holding],
-                               leverage: float = 100) -> Dict[str, int]:
+                               long_leverage: float = 100,
+                               short_leverage: float = 0) -> Dict[str, int]:
     """
     Calculates target positions.
 
     >>> calculate_target_positions(100, {"SPY", 50}, [Holding("SPY", 0)])
-    Traceback (most recent call last):
-      ...
-    Exception: Total weight must be greater than 0!
+    {}
 
     >>> calculate_target_positions(10, {"SPY": 1}, [Holding("SPY", 1)])
     {'SPY': 10}
 
+    >>> calculate_target_positions(10, {"SPY": 1}, [Holding("SPY", -1)], short_leverage=100)
+    {'SPY': -10}
+
     >>> calculate_target_positions(10, {"SPY": 1}, [Holding("SPY", 1)], 150)
     {'SPY': 15}
+
+    >>> calculate_target_positions(10, {"SPY": 1}, [Holding("SPY", -1)], short_leverage=150)
+    {'SPY': -15}
 
     >>> calculate_target_positions(10, {"SPY": 6}, [Holding("SPY", 1)])
     {'SPY': 1}
 
     >>> calculate_target_positions(10, {"SPY": 9}, [Holding("SPY", 1)])
     {'SPY': 1}
+
+    >>> calculate_target_positions(10, {"SPY": 9}, [Holding("SPY", -1)], short_leverage=100)
+    {'SPY': -1}
 
     >>> calculate_target_positions(10, {"SPY": 10}, [Holding("SPY", 1)])
     {'SPY': 1}
@@ -56,11 +64,21 @@ def calculate_target_positions(net_liquidation_value: float,
     WARNING: Target portfolio contains holding SPY with 0 position
     {}
 
+    >>> calculate_target_positions(10, {"SPY": 11}, [Holding("SPY", -1)], short_leverage=100)
+    WARNING: Target portfolio contains holding SPY with 0 position
+    {}
+
     >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 1}, [Holding("SPY", 1), Holding("QQQ", 1)])
     {'SPY': 5, 'QQQ': 5}
 
+    >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 1}, [Holding("SPY", -1), Holding("QQQ", -1)], short_leverage=100)
+    {'SPY': -5, 'QQQ': -5}
+
     >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 1}, [Holding("SPY", 1), Holding("QQQ", 2)])
     {'SPY': 3, 'QQQ': 6}
+
+    >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 1}, [Holding("SPY", -1), Holding("QQQ", -2)], short_leverage=100)
+    {'SPY': -3, 'QQQ': -6}
 
     >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 1}, [Holding("SPY", 1), Holding("QQQ", 3)])
     {'SPY': 2, 'QQQ': 7}
@@ -78,18 +96,34 @@ def calculate_target_positions(net_liquidation_value: float,
     >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 10}, [Holding("SPY", 1), Holding("QQQ", 3)])
     WARNING: Target portfolio contains holding QQQ with 0 position
     {'SPY': 2}
-    """
-    total_weight = sum([h.weight for h in target_holdings])
 
-    if total_weight <= 0:
-        raise Exception("Total weight must be greater than 0!")
+    >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 1}, [Holding("SPY", -1), Holding("QQQ", 1)], \
+        long_leverage=100, short_leverage=50)
+    {'SPY': -5, 'QQQ': 10}
+    """
+    total_long_weight = sum([h.weight for h in target_holdings if h.weight > 0])
+    # total_short_weight is a negative value.
+    total_short_weight = sum([h.weight for h in target_holdings if h.weight < 0])
+
+    if total_long_weight < 0:
+        raise Exception("Total long weight must be 0 or more!")
+    if total_short_weight > 0:
+        raise Exception("Total short short weight must be 0 or less!")
     out = {}
     for holding in target_holdings:
-        target_percent = holding.weight / float(total_weight)
+        if holding.weight == 0:
+            continue
+        target_percent = holding.weight / (
+            float(total_long_weight) if holding.weight > 0 else float(-total_short_weight))
         price = ticker_prices[holding.ticker]
         if price <= 0:
             raise Exception("Ticker %s has a invalid price: " % (holding.ticker, price))
-        target_position = math.floor(target_percent * (net_liquidation_value * leverage / 100.0) / price)
+        leverage = long_leverage if holding.weight > 0 else short_leverage
+        target_position = (target_percent * (net_liquidation_value * leverage / 100.0) / price)
+        if holding.weight > 0:
+            target_position = math.floor(target_position)
+        else:
+            target_position = math.ceil(target_position)
         if target_position == 0:
             print("WARNING: Target portfolio contains holding %s with 0 position" % holding.ticker)
         else:
@@ -183,13 +217,15 @@ def rebalance(account_number: str, port: int):
     ib.connect('127.0.0.1', port, clientId=1)
     ib.reqPositions()
     print("Current Net Liquidation Value %f" % get_net_liquidation_value(ib, account_number))
-
-    current_positions = {p.contract.symbol: p.position for p in ib.positions(account_number)}
+    current_positions = {p.contract.symbol: p.position for p in ib.positions(account_number)
+                         if isinstance(p.contract, Stock)  # Stocks only!
+                         }
     all_tickers = set(current_positions.keys()) | target_tickers
     all_contracts = fetch_ib_contracts(ib, all_tickers)
     prices = get_prices_for_contracts(ib, all_contracts.values())
     tgt_positions = calculate_target_positions(get_net_liquidation_value(ib, account_number), prices, target_holdings,
-                                               portfolio_spec.portfolio.leverage)
+                                               portfolio_spec.portfolio.long_leverage,
+                                               portfolio_spec.portfolio.short_leverage)
     orders = calculate_orders(current_positions, tgt_positions)
     print_rebalance_summary(target_holdings, prices, tgt_positions, current_positions, orders)
 
@@ -200,14 +236,13 @@ def rebalance(account_number: str, port: int):
         for (ticker, delta) in orders.items():
             action = "BUY" if delta > 0 else "SELL"
             delta = abs(delta)
-            ib_order = Order(orderType='MKT', action=action, algoStrategy="Adaptive",
-                             algoParams=[TagValue("adaptivePriority", "Patient")],
-                             totalQuantity=delta)
-
+            ib_order = Order(orderType='MIDPRICE', action=action, totalQuantity=delta)
             trades += [ib.placeOrder(all_contracts[ticker], ib_order)]
-            print("%s [%d] shares of [%s] with %s %s" % (
-                ib_order.action, ib_order.totalQuantity, ticker, ib_order.algoStrategy, ib_order.orderType))
+            print("%s [%d] shares of [%s]" % (
+                ib_order.action, ib_order.totalQuantity, ticker))
+            ib.sleep()  # Sleep for a bit to let the TWS order system catch up.
         print("Orders submitted but may take a while to execute. Exiting.")
+
 
 cli.add_command(rebalance)
 
