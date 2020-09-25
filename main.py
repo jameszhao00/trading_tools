@@ -206,7 +206,7 @@ def calculate_orders(current_positions: Dict[str, int], target_positions: Dict[s
 @click.command()
 @click.option('--account_number', prompt='Account number (e.g. Uxxxxxxx)',
               help='Your account number. Starts with a \'U\'')
-@click.option('--port', default=7496)
+@click.option('--port', default=4001)
 def rebalance(account_number: str, port: int):
     verify_portfolio(portfolio_spec.portfolio)
 
