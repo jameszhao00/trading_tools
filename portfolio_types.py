@@ -10,6 +10,9 @@ class Holding:
     weight: int
     reason: str = '[No Reason]'
     tactical: str = ''  # Short term notes.
+    founder_lead: bool = False
+    glassdoor_ceo_rating: int = None
+    hiring_surge: bool = False
 
 
 @dataclass()
