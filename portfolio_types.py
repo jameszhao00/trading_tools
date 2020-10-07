@@ -8,6 +8,8 @@ import collections
 class Holding:
     ticker: str
     weight: int
+    reason: str = '[No Reason]'
+    tactical: str = ''  # Short term notes.
 
 
 @dataclass()

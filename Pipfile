@@ -10,6 +10,12 @@ prompt_toolkit = "*"
 Click = "*"
 tabulate = "*"
 ib_insync = "*"
+PyPortfolioOpt = "*"
+matplotlib = "*"
+pandas_datareader = "*"
+jupyter = "*"
+yfinance = "*"
+sklearn = "*"
 
 [requires]
 python_version = "3.8"
