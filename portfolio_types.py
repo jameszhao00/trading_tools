@@ -33,7 +33,7 @@ def verify_portfolio(p: Portfolio):
     >>> verify_portfolio(Portfolio(long_leverage=1, holdings=[Holding("SPY", 0)]))
     Traceback (most recent call last):
       ...
-    Exception: Found holdings with zero weight: [Holding(ticker='SPY', weight=0)]
+    Exception: Found holdings with zero weight: [Holding(ticker='SPY', weight=0, reason='[No Reason]', tactical='', is_founder_active=False, glassdoor_ceo_rating=None, hiring_surge=False)]
     """
     duplicate_items = [item for item, count in collections.Counter([h.ticker for h in p.holdings]).items() if count > 1]
     if duplicate_items:

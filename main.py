@@ -171,25 +171,31 @@ def print_rebalance_summary(target_holdings: List[Holding], prices, target_posit
     print(tabulate(data, headers=["Ticker", "Price", "Current Position", "Target Weight", "Target Position", "Orders"]))
 
 
-def calculate_orders(current_positions: Dict[str, int], target_positions: Dict[str, int]) -> Dict[str, int]:
+def calculate_orders(current_positions: Dict[str, int], target_positions: Dict[str, int], prices: Dict[str, int],
+                     min_order_size_in_dollars: float) -> Dict[str, int]:
     """
-    >>> calculate_orders({"SPY": 1}, {"SPY": 2})
+    >>> calculate_orders({"SPY": 1}, {"SPY": 2}, {"SPY": 1000}, 1)
     {'SPY': 1}
 
-    >>> calculate_orders({"SPY": 2}, {"SPY": 1})
+    >>> calculate_orders({"SPY": 2}, {"SPY": 1}, {"SPY": 1000}, 1)
     {'SPY': -1}
 
-    >>> calculate_orders({}, {"SPY": 1})
+    >>> calculate_orders({}, {"SPY": 1}, {"SPY": 1000}, 1)
     {'SPY': 1}
 
-    >>> calculate_orders({"SPY": 1}, {})
+    >>> calculate_orders({"SPY": 1}, {}, {"SPY": 1000}, 1)
     {'SPY': -1}
 
-    >>> calculate_orders({"SPY": 1}, {"QQQ": 1})
+    >>> calculate_orders({"SPY": 1}, {"QQQ": 1}, {"SPY": 1000, "QQQ": 1000}, 1)
     {'QQQ': 1, 'SPY': -1}
+
+    >>> calculate_orders({"SPY": 1}, {"SPY": 2}, {"SPY": 10}, 1000)
+    {}
 
     :param current_positions:
     :param target_positions:
+    :param prices: Current ticker prices.
+    :param min_order_size_in_dollars: Only create orders that exceed this amount.
     :return: A map from ticker to shares to buy (positive) or sell (negative).
     """
     out: Dict[str, int] = {}
@@ -198,8 +204,12 @@ def calculate_orders(current_positions: Dict[str, int], target_positions: Dict[s
         current = current_positions.get(ticker, 0)
         target = target_positions.get(ticker, 0)
         delta = target - current
-        if delta != 0:
-            out[ticker] = delta
+        if delta == 0:
+            continue
+        dollar_amount = abs(delta * prices[ticker])
+        if dollar_amount < min_order_size_in_dollars:
+            continue
+        out[ticker] = delta
     return out
 
 
@@ -207,7 +217,11 @@ def calculate_orders(current_positions: Dict[str, int], target_positions: Dict[s
 @click.option('--account_number', prompt='Account number (e.g. Uxxxxxxx)',
               help='Your account number. Starts with a \'U\'')
 @click.option('--port', default=4001)
-def rebalance(account_number: str, port: int):
+@click.option('--holding_allocation_drift_threshold_in_dollars',
+              prompt="Only buy/sell holdings once the holding has drifted this much from the target amount. Pass in 0"
+                     " to force a total complete rebalance.",
+              default=500.0)
+def rebalance(account_number: str, port: int, holding_allocation_drift_threshold_in_dollars: float):
     verify_portfolio(portfolio_spec.portfolio)
 
     target_holdings = portfolio_spec.portfolio.holdings
@@ -226,7 +240,8 @@ def rebalance(account_number: str, port: int):
     tgt_positions = calculate_target_positions(get_net_liquidation_value(ib, account_number), prices, target_holdings,
                                                portfolio_spec.portfolio.long_leverage,
                                                portfolio_spec.portfolio.short_leverage)
-    orders = calculate_orders(current_positions, tgt_positions)
+    orders = calculate_orders(current_positions, tgt_positions, prices, holding_allocation_drift_threshold_in_dollars)
+
     print_rebalance_summary(target_holdings, prices, tgt_positions, current_positions, orders)
 
     if prompt("Submit orders? yes/no").lower() == "yes":

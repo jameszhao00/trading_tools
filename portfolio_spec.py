@@ -25,18 +25,16 @@ portfolio = Portfolio(long_leverage=100, short_leverage=0, holdings=[
             glassdoor_ceo_rating=82),
     Holding("DOCU", 4, reason="Leader in document management.", tactical="Slowly build up a position?",
             is_founder_active=True, glassdoor_ceo_rating=98),
-    Holding("TTD", 4, reason="???", tactical="Slowly build up a position?", is_founder_active=True, glassdoor_ceo_rating=87),
+    Holding("TTD", 5, reason="???", tactical="Slowly build up a position?", is_founder_active=True, glassdoor_ceo_rating=87),
     Holding("ROKU", 5, reason="Leader in home entertainment", is_founder_active=True, glassdoor_ceo_rating=78,
             hiring_surge=True),
     Holding("ZS", 3, reason="Security. Massive hiring surge."),
     Holding("FIVN", 5, reason="Leader in contact center tech."),
 
     Holding("PBW", 10, reason="Clean energy"),
-    Holding("ICLN", 5, reason="Clean energy"),
-
-    Holding("AAPL", 8, reason="Leader in consumer tech."),
-    Holding("AMZN", 8, reason="Leader in general innovation and ecommerce"),
-
+    #
+    # Holding("QQQ", -3, reason="Hedge."),
+    # Holding("WCLD", -1, reason="Hedge."),
     # Zillow CEO seems really MBA.
     # Holding("ZG", 5, reason="Leader in Home purchasing", is_founder_active=True, glassdoor_ceo_rating=93),
     # Holding("RDFN", 1, reason="Leader in Home purchasing", is_founder_active=True, glassdoor_ceo_rating=74),
