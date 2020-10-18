@@ -11,6 +11,7 @@ from ib_insync import *
 from portfolio_spec import *
 import doctest
 import math
+import pandas as pd
 
 
 @click.group()
@@ -26,109 +27,13 @@ def get_net_liquidation_value(ib: IB, account_number: str) -> float:
 
 
 def calculate_target_positions(net_liquidation_value: float,
-                               ticker_prices: Dict[str, float],
-                               target_holdings: List[Holding],
-                               long_leverage: float = 100,
-                               short_leverage: float = 0) -> Dict[str, int]:
-    """
-    Calculates target positions.
-
-    >>> calculate_target_positions(100, {"SPY", 50}, [Holding("SPY", 0)])
-    {}
-
-    >>> calculate_target_positions(10, {"SPY": 1}, [Holding("SPY", 1)])
-    {'SPY': 10}
-
-    >>> calculate_target_positions(10, {"SPY": 1}, [Holding("SPY", -1)], short_leverage=100)
-    {'SPY': -10}
-
-    >>> calculate_target_positions(10, {"SPY": 1}, [Holding("SPY", 1)], 150)
-    {'SPY': 15}
-
-    >>> calculate_target_positions(10, {"SPY": 1}, [Holding("SPY", -1)], short_leverage=150)
-    {'SPY': -15}
-
-    >>> calculate_target_positions(10, {"SPY": 6}, [Holding("SPY", 1)])
-    {'SPY': 1}
-
-    >>> calculate_target_positions(10, {"SPY": 9}, [Holding("SPY", 1)])
-    {'SPY': 1}
-
-    >>> calculate_target_positions(10, {"SPY": 9}, [Holding("SPY", -1)], short_leverage=100)
-    {'SPY': -1}
-
-    >>> calculate_target_positions(10, {"SPY": 10}, [Holding("SPY", 1)])
-    {'SPY': 1}
-
-    >>> calculate_target_positions(10, {"SPY": 11}, [Holding("SPY", 1)])
-    WARNING: Target portfolio contains holding SPY with 0 position
-    {}
-
-    >>> calculate_target_positions(10, {"SPY": 11}, [Holding("SPY", -1)], short_leverage=100)
-    WARNING: Target portfolio contains holding SPY with 0 position
-    {}
-
-    >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 1}, [Holding("SPY", 1), Holding("QQQ", 1)])
-    {'SPY': 5, 'QQQ': 5}
-
-    >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 1}, [Holding("SPY", -1), Holding("QQQ", -1)], short_leverage=100)
-    {'SPY': -5, 'QQQ': -5}
-
-    >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 1}, [Holding("SPY", 1), Holding("QQQ", 2)])
-    {'SPY': 3, 'QQQ': 6}
-
-    >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 1}, [Holding("SPY", -1), Holding("QQQ", -2)], short_leverage=100)
-    {'SPY': -3, 'QQQ': -6}
-
-    >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 1}, [Holding("SPY", 1), Holding("QQQ", 3)])
-    {'SPY': 2, 'QQQ': 7}
-
-    >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 3}, [Holding("SPY", 1), Holding("QQQ", 3)])
-    {'SPY': 2, 'QQQ': 2}
-
-    >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 7}, [Holding("SPY", 1), Holding("QQQ", 3)])
-    {'SPY': 2, 'QQQ': 1}
-
-    >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 8}, [Holding("SPY", 1), Holding("QQQ", 3)])
-    WARNING: Target portfolio contains holding QQQ with 0 position
-    {'SPY': 2}
-
-    >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 10}, [Holding("SPY", 1), Holding("QQQ", 3)])
-    WARNING: Target portfolio contains holding QQQ with 0 position
-    {'SPY': 2}
-
-    >>> calculate_target_positions(10, {"SPY": 1, "QQQ": 1}, [Holding("SPY", -1), Holding("QQQ", 1)], \
-        long_leverage=100, short_leverage=50)
-    {'SPY': -5, 'QQQ': 10}
-    """
-    total_long_weight = sum([h.weight for h in target_holdings if h.weight > 0])
-    # total_short_weight is a negative value.
-    total_short_weight = sum([h.weight for h in target_holdings if h.weight < 0])
-
-    if total_long_weight < 0:
-        raise Exception("Total long weight must be 0 or more!")
-    if total_short_weight > 0:
-        raise Exception("Total short short weight must be 0 or less!")
-    out = {}
-    for holding in target_holdings:
-        if holding.weight == 0:
-            continue
-        target_percent = holding.weight / (
-            float(total_long_weight) if holding.weight > 0 else float(-total_short_weight))
-        price = ticker_prices[holding.ticker]
-        if price <= 0:
-            raise Exception("Ticker %s has a invalid price: " % (holding.ticker, price))
-        leverage = long_leverage if holding.weight > 0 else short_leverage
-        target_position = (target_percent * (net_liquidation_value * leverage / 100.0) / price)
-        if holding.weight > 0:
-            target_position = math.floor(target_position)
-        else:
-            target_position = math.ceil(target_position)
-        if target_position == 0:
-            print("WARNING: Target portfolio contains holding %s with 0 position" % holding.ticker)
-        else:
-            out[holding.ticker] = target_position
-    return out
+                               prices: pd.Series,
+                               weights: Dict[str, float],
+                               long_leverage: float = 100) -> Dict[str, int]:
+    from pypfopt import DiscreteAllocation
+    da = DiscreteAllocation(weights, prices, total_portfolio_value=net_liquidation_value * long_leverage / 100.0)
+    alloc, leftover = da.lp_portfolio()
+    return alloc
 
 
 def fetch_ib_contracts(ib: IB, tickers: List[str]) -> Dict[str, Contract]:
@@ -150,29 +55,33 @@ def fetch_ib_contracts(ib: IB, tickers: List[str]) -> Dict[str, Contract]:
     return out
 
 
-def get_prices_for_contracts(ib: IB, contracts: List[Contract]) -> Dict[str, float]:
+def get_prices_for_contracts(ib: IB, contracts: List[Contract]) -> pd.Series:
     out = {}
     for contract in contracts:
         data = ib.reqMktData(contract)
         while data.last != data.last: ib.sleep(0.01)  # Wait until data is in.
         # print("%s has a last price of %f" % (ticker, data.last))
         out[contract.symbol] = data.last
-    return out
+
+    return pd.Series(out).sort_index()
 
 
-def print_rebalance_summary(target_holdings: List[Holding], prices, target_positions: Dict[str, int],
+def print_rebalance_summary(prices,
+                            target_weights: Dict[str, float],
+                            target_positions: Dict[str, int],
                             current_positions: Dict[str, int], orders: Dict[str, int]):
-    all_tickers = set(target_positions.keys()) | set(current_positions.keys())
-    target_holdings = {h.ticker: h.weight for h in target_holdings}
+    all_tickers = list(set(target_positions.keys()) | set(current_positions.keys()))
+    all_tickers.sort()
     data = [
-        [ticker, prices[ticker], current_positions.get(ticker, ""), target_holdings.get(ticker, ""),
-         target_positions.get(ticker, ""), orders.get(ticker, "")]
+        [ticker, target_weights.get(ticker, ""), current_positions.get(ticker, ""),
+         target_positions.get(ticker, ""), orders.get(ticker, ""), prices[ticker], ]
         for ticker in all_tickers]
-    print(tabulate(data, headers=["Ticker", "Price", "Current Position", "Target Weight", "Target Position", "Orders"]))
+    print(
+        tabulate(data, headers=["Ticker", "Target Weight", "Current Position", "Target Position", "Orders", "Price"]))
 
 
-def calculate_orders(current_positions: Dict[str, int], target_positions: Dict[str, int], prices: Dict[str, int],
-                     min_order_size_in_dollars: float) -> Dict[str, int]:
+def calculate_orders(current_positions: Dict[str, int], target_positions: Dict[str, int], prices: Dict[str, int]) -> \
+        Dict[str, int]:
     """
     >>> calculate_orders({"SPY": 1}, {"SPY": 2}, {"SPY": 1000}, 1)
     {'SPY': 1}
@@ -195,7 +104,6 @@ def calculate_orders(current_positions: Dict[str, int], target_positions: Dict[s
     :param current_positions:
     :param target_positions:
     :param prices: Current ticker prices.
-    :param min_order_size_in_dollars: Only create orders that exceed this amount.
     :return: A map from ticker to shares to buy (positive) or sell (negative).
     """
     out: Dict[str, int] = {}
@@ -206,25 +114,48 @@ def calculate_orders(current_positions: Dict[str, int], target_positions: Dict[s
         delta = target - current
         if delta == 0:
             continue
-        dollar_amount = abs(delta * prices[ticker])
-        if dollar_amount < min_order_size_in_dollars:
-            continue
         out[ticker] = delta
     return out
+
+
+def compute_min_variance_portfolio(tickers: List[str], lookback_history=180) -> Dict[str, float]:
+    """
+    Compute the min variance portfolio.
+    :param tickers:
+    :param lookback_history:
+    :return: A mapping from the ticker to the weight.
+    """
+    from pypfopt import expected_returns
+    from pypfopt import objective_functions
+    from pypfopt import EfficientFrontier
+    from pypfopt import risk_models
+    from datetime import datetime, timedelta
+
+    import yfinance as yf
+    date_N_days_ago = datetime.now() - timedelta(days=lookback_history)
+    print("Fetching prices from %s to now" % date_N_days_ago)
+    prices = yf.download(tickers, period="max")["Adj Close"][date_N_days_ago:]
+    print("Finished fetching prices")
+    mu = expected_returns.capm_return(prices)
+    S = risk_models.exp_cov(prices, span=120)
+    ef = EfficientFrontier(mu, S)
+    # if last_weights is not None:
+    #     ef.add_objective(objective_functions.transaction_cost, w_prev=pd.Series(last_weights).values, k=0.003)
+    ef.add_objective(objective_functions.L2_reg, gamma=.2)  # gamme is the tuning parameter
+    ef.min_volatility()
+    weights = ef.clean_weights()
+    print("Optimized weights", weights)
+    ef.portfolio_performance(verbose=True)
+    return weights
 
 
 @click.command()
 @click.option('--account_number', prompt='Account number (e.g. Uxxxxxxx)',
               help='Your account number. Starts with a \'U\'')
 @click.option('--port', default=4001)
-@click.option('--holding_allocation_drift_threshold_in_dollars',
-              prompt="Only buy/sell holdings once the holding has drifted this much from the target amount. Pass in 0"
-                     " to force a total complete rebalance.",
-              default=500.0)
-def rebalance(account_number: str, port: int, holding_allocation_drift_threshold_in_dollars: float):
+def rebalance(account_number: str, port: int):
     verify_portfolio(portfolio_spec.portfolio)
 
-    target_holdings = portfolio_spec.portfolio.holdings
     target_tickers = set(h.ticker for h in portfolio_spec.portfolio.holdings)
 
     ib = IB()
@@ -234,15 +165,22 @@ def rebalance(account_number: str, port: int, holding_allocation_drift_threshold
     current_positions = {p.contract.symbol: p.position for p in ib.positions(account_number)
                          if isinstance(p.contract, Stock)  # Stocks only!
                          }
+    print("Retrieved current positions.")
     all_tickers = set(current_positions.keys()) | target_tickers
     all_contracts = fetch_ib_contracts(ib, all_tickers)
+    print("Retrieved IB contracts.")
+    target_weights = compute_min_variance_portfolio(target_tickers)
+    print("Computed min variance portfolio weights.")
     prices = get_prices_for_contracts(ib, all_contracts.values())
-    tgt_positions = calculate_target_positions(get_net_liquidation_value(ib, account_number), prices, target_holdings,
-                                               portfolio_spec.portfolio.long_leverage,
-                                               portfolio_spec.portfolio.short_leverage)
-    orders = calculate_orders(current_positions, tgt_positions, prices, holding_allocation_drift_threshold_in_dollars)
+    print("Retrieved prices for IB contracts.")
+    target_prices = prices.filter(target_weights.keys())
+    target_positions = calculate_target_positions(get_net_liquidation_value(ib, account_number),
+                                                  target_prices,
+                                                  target_weights,
+                                                  portfolio_spec.portfolio.long_leverage)
+    orders = calculate_orders(current_positions, target_positions, prices)
 
-    print_rebalance_summary(target_holdings, prices, tgt_positions, current_positions, orders)
+    print_rebalance_summary(prices, target_weights, target_positions, current_positions, orders)
 
     if prompt("Submit orders? yes/no").lower() == "yes":
         if ib.reqAllOpenOrders():
