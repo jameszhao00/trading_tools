@@ -158,7 +158,7 @@ def rebalance(account_number: str, allocations_directory: str, port: int):
     print("Retrieved IB contracts.")
     prices = get_prices_for_contracts(ib, all_contracts.values())
     print("Retrieved prices for IB contracts.")
-    target_prices = prices.filter(allocation["ticker"])
+    target_prices = prices.filter(target_tickers)
     target_positions = calculate_target_positions(get_net_liquidation_value(ib, account_number),
                                                   target_prices,
                                                   allocation)

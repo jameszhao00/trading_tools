@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Tuple
 from unittest import TestCase
 
 from pandas import DatetimeIndex
@@ -9,7 +9,7 @@ import tempfile
 from backtest import Backtester
 
 
-def noop_set_portfolio(timestamp, returns_excluding_today) -> Dict[str, float]:
+def noop_set_portfolio(timestamp, returns_excluding_today) -> Tuple[Dict[str, float], object]:
     assert timestamp not in returns_excluding_today
     return {"AAPL": 1, "GOOG": 0}, 1
 
