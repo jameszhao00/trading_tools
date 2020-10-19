@@ -5,7 +5,7 @@ from unittest import TestCase
 from pandas import DatetimeIndex
 from pandas._testing import assert_frame_equal, assert_series_equal
 import pandas as pd
-
+import tempfile
 from backtest import Backtester
 
 
@@ -39,3 +39,22 @@ class TestBacktester(TestCase):
                                                           index=DatetimeIndex(
                                                               ['2020-03-05', '2020-03-06', '2020-03-09'], name='Date'),
                                                           dtype=object))
+
+
+class TestBacktestResult(TestCase):
+    def test_save_most_recent_allocation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            sut = Backtester(start_date=datetime(2020, 3, 5), end_date=datetime(2020, 3, 10),
+                             max_lookback_in_days=1).backtest(
+                ["AAPL", "GOOG"], [], noop_set_portfolio)
+            file = sut.save_most_recent_allocation(directory)
+            assert file.endswith(".csv")
+            assert_frame_equal(pd.read_csv(file), pd.DataFrame({"ticker": ["AAPL", "GOOG"], "weight": [1.0, 0.0]}))
+
+    def test_save_most_recent_allocation_with_leverage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            sut = Backtester(start_date=datetime(2020, 3, 5), end_date=datetime(2020, 3, 10),
+                             max_lookback_in_days=1).backtest(
+                ["AAPL", "GOOG"], [], noop_set_portfolio)
+            file = sut.save_most_recent_allocation(directory, leverage=2)
+            assert_frame_equal(pd.read_csv(file), pd.DataFrame({"ticker": ["AAPL", "GOOG"], "weight": [2.0, 0.0]}))

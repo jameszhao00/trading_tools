@@ -1,4 +1,5 @@
 # universe
+import os
 from dataclasses import dataclass
 from typing import Dict, List
 from datetime import datetime, date, timedelta
@@ -6,7 +7,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import pandas as pd
-
+from datetime import datetime
 from stock_data_repo import StockDataRepo
 
 # Download some additional days of data so we guarantee enough days of lookback.
@@ -19,6 +20,12 @@ class BacktestResult:
     returns_history: pd.Series
     aux_data_history: pd.Series
     component_returns: pd.DataFrame
+
+    def save_most_recent_allocation(self, directory: str, leverage=1.0):
+        path = os.path.join(directory, datetime.now().strftime("optimized-allocation-%Y-%m-%d__%H-%M-%S") + ".csv")
+        allocation = self.allocation_history.iloc[-1] * leverage
+        allocation.rename("weight").to_csv(path, index_label=["ticker"])
+        return path
 
 
 class Backtester:
