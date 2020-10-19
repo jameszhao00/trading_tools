@@ -10,6 +10,7 @@ from backtest import Backtester
 
 
 def noop_set_portfolio(timestamp, returns_excluding_today) -> Dict[str, float]:
+    assert timestamp not in returns_excluding_today
     return {"AAPL": 1, "GOOG": 0}, 1
 
 

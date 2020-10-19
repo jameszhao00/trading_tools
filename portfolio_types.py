@@ -18,7 +18,8 @@ class Holding:
 class Portfolio:
     # Leverage in percent (e.g. 130 = 1.3x leverage).
     long_leverage: float
-    holdings: List[Holding]
+    longs: List[Holding]
+    shorts: List[Holding]
     short_leverage: float = 0
 
 
@@ -29,6 +30,6 @@ def verify_portfolio(p: Portfolio):
       ...
     Exception: Found duplicate tickers: ['SPY']
     """
-    duplicate_items = [item for item, count in collections.Counter([h.ticker for h in p.holdings]).items() if count > 1]
+    duplicate_items = [item for item, count in collections.Counter([h.ticker for h in p.longs]).items() if count > 1]
     if duplicate_items:
         raise Exception("Found duplicate tickers: %s" % duplicate_items)

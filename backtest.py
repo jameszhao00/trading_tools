@@ -25,6 +25,7 @@ class Backtester:
     def __init__(self, start_date: datetime, end_date=None, max_lookback_in_days: int = 120):
         self.max_lookback_in_days = max_lookback_in_days
         self.start_date = start_date
+        self.end_date = end_date
         self.repo = StockDataRepo(start_date - timedelta(days=max_lookback_in_days + ADDITIONAL_LOOKBACK_BUFFER),
                                   end_date)
 
@@ -32,12 +33,10 @@ class Backtester:
         universe = long_universe + short_universe
         universe.sort()
         component_returns = self.repo.get_prices(universe).pct_change()[1:]
-        for short_ticker in short_universe:
-            component_returns["SHORT_" + short_ticker] = -1 * component_returns[short_ticker]
-            del component_returns[short_ticker]
 
         result_datetime_index = component_returns.index[component_returns.index >= self.start_date]
-        allocation_history = pd.DataFrame(index=result_datetime_index, columns=component_returns.columns, dtype=np.float)
+        allocation_history = pd.DataFrame(index=result_datetime_index, columns=universe,
+                                          dtype=np.float)
         returns_history = pd.Series(index=result_datetime_index, dtype=np.float)
         aux_data_history = pd.Series(index=result_datetime_index, dtype=object)
         last_allocation = {ticker: 0 for ticker in universe}
@@ -51,7 +50,34 @@ class Backtester:
             returns_excluding_today = component_returns.loc[:current_date].iloc[-self.max_lookback_in_days - 1:-1]
             # Drop any tickers with any missing data.
             returns_excluding_today = returns_excluding_today.dropna(axis=1)
+
+            # Transparently treat the shorts as longs by inverting their returns.
+            for short_ticker in short_universe:
+                returns_excluding_today["SHORT_" + short_ticker] = -1 * returns_excluding_today[short_ticker]
+                del returns_excluding_today[short_ticker]
+
             last_allocation, aux_data = portfolio_fn(current_date, returns_excluding_today)
+            last_allocation = pd.Series(last_allocation)
+
+            # Fix the short names and flip their weights.
+            def maybe_flip_short_name(ticker: str):
+                if ticker.startswith("SHORT_"):
+                    return ticker.replace("SHORT_", "")
+                return ticker
+
+            def maybe_flip_short_weight(ticker: str, weight: float):
+                if ticker.startswith("SHORT_"):
+                    return -1 * weight
+                return weight
+
+            last_allocation = pd.Series({
+                maybe_flip_short_name(ticker): maybe_flip_short_weight(ticker, weight)
+                for ticker, weight in last_allocation.iteritems()
+            })
+
+            # Normalize it so longs sum up to 100% weight.
+            total_long_weight = last_allocation[last_allocation > 0].sum()
+            last_allocation = last_allocation.map(lambda w: w / total_long_weight)
 
             # Add back tickers with missing data.
             for ticker in universe:

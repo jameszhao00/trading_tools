@@ -3,7 +3,7 @@ from portfolio_types import *
 # Major themes:
 # Stimulus delayed.
 
-portfolio = Portfolio(long_leverage=100, holdings=[
+portfolio = Portfolio(long_leverage=100, longs=[
     Holding("PBW", reason="Clean energy"),
     Holding("DDOG", reason="Leader in production monitoring", is_founder_active=True, glassdoor_ceo_rating=93,
             hiring_surge=True),
@@ -69,7 +69,6 @@ portfolio = Portfolio(long_leverage=100, holdings=[
     Holding("AMZN", reason="Jeff bezos."),
     Holding("SPOT", reason="Music monopoly."),
 
-
     Holding("TXG", reason="CPOAX top 10 holding 9/30/2020."),
     Holding("CVNA", reason="CPOAX top 10 holding 9/30/2020."),
     Holding("COUP", reason="CPOAX top 10 holding 9/30/2020."),
@@ -78,35 +77,33 @@ portfolio = Portfolio(long_leverage=100, holdings=[
     Holding("UBER", reason="CPOAX top 10 holding 9/30/2020."),
     Holding("VEEV", reason="CPOAX top 10 holding 9/30/2020."),
 
-
     Holding("NVTA", reason="ARKK top 10 holding 9/30/2020."),
     Holding("CRSP", reason="ARKK top 10 holding 9/30/2020."),
     Holding("PRLB", reason="ARKK top 10 holding 9/30/2020."),
     Holding("WORK", reason="ARKK top 10 holding 9/30/2020."),
     Holding("TSLA", reason="ARKK top 10 holding 9/30/2020."),
 
-    Holding("SQQQ", reason="ARKK top 10 holding 9/30/2020."),
-    Holding("RWM", reason="ARKK top 10 holding 9/30/2020."),
-
+    Holding("VXX", reason="Hedge")
     # Holding("WMT", reason="Big chain store."),
     # Holding("JPM", reason="Fancy home company."),
     # Holding("GS", reason="Fancy home company."),
+], shorts=[
     # Shorts.
     # Tech.
-    # Holding("CSCO", -3, reason="Things are moving to the cloud. Less need for physical network gear."),
-    # Holding("INTC", -3, reason="Less desktops. Server chips are moving to ARM/in house processors/GPUs."),
-    # Holding("DBX", -3, reason="Google/Microsoft/... cloud storage owning this.", is_founder_active=True),
-    # Holding("BOX", -3, reason="Google/Microsoft/... cloud storage owning this.", is_founder_active=True),
-    # Holding("NLOK", -3,
-    #         reason="Newer devices do not need consumer facing antivirus. How many people buy consumer fraud prevention?"),
-    # Holding("CLDR", -3, reason="Cloudera's been left behind by companies like Snowflake."),
-    # Holding("IBM", reason="It's IBM"),
-    # Holding("VRSN", reason="Verisign is massively rent seeking. Doesn't innovate."),
+    Holding("CSCO", reason="Things are moving to the cloud. Less need for physical network gear."),
+    Holding("INTC", reason="Less desktops. Server chips are moving to ARM/in house processors/GPUs."),
+    Holding("DBX", reason="Google/Microsoft/... cloud storage owning this.", is_founder_active=True),
+    Holding("BOX", reason="Google/Microsoft/... cloud storage owning this.", is_founder_active=True),
+    Holding("NLOK",
+            reason="Newer devices do not need consumer facing antivirus. How many people buy consumer fraud prevention?"),
+    Holding("CLDR", reason="Cloudera's been left behind by companies like Snowflake."),
+    Holding("IBM", reason="It's IBM"),
+    Holding("VRSN", reason="Verisign is massively rent seeking. Doesn't innovate."),
     #
     # # Energy and finance.
-    # Holding("XLE"),
+    Holding("XLE"),
     # Holding("XLF", -7),
     # # Tobacco stocks
-    # Holding("MO", -3, reason="Smoking on the decline"),
-    # Holding("PM", -3, reason="Smoking on the decline"),
+    Holding("MO", reason="Smoking on the decline"),
+    Holding("PM", reason="Smoking on the decline"),
 ])

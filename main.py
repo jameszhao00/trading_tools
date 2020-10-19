@@ -156,7 +156,7 @@ def compute_min_variance_portfolio(tickers: List[str], lookback_history=180) -> 
 def rebalance(account_number: str, port: int):
     verify_portfolio(portfolio_spec.portfolio)
 
-    target_tickers = set(h.ticker for h in portfolio_spec.portfolio.holdings)
+    target_tickers = set(h.ticker for h in portfolio_spec.portfolio.longs)
 
     ib = IB()
     ib.connect('127.0.0.1', port, clientId=1)
