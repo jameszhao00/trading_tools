@@ -5,6 +5,7 @@ from prompt_toolkit import prompt
 from tabulate import tabulate
 from ib_insync import *
 import pandas as pd
+import numpy as np
 
 from os import listdir
 from os.path import isfile, join
@@ -25,10 +26,43 @@ def get_net_liquidation_value(ib: IB, account_number: str) -> float:
 def calculate_target_positions(net_liquidation_value: float,
                                prices: pd.Series,
                                weights: Dict[str, float]) -> Dict[str, int]:
-    from pypfopt import DiscreteAllocation
-    da = DiscreteAllocation(weights, prices, total_portfolio_value=net_liquidation_value)
-    alloc, leftover = da.lp_portfolio()
-    return alloc
+    # Do the longs and shorts separately, because the DiscreteAllocation can't handle longs and shorts at the same time
+    # in a way we want.
+
+    weights_series = pd.Series(weights)
+    long_weights = weights_series[weights_series > 0]
+    short_weights = weights_series[weights_series < 0]
+
+    # Flip the short weights to be positive.
+    short_weights = -short_weights
+
+    total_long_weights = long_weights.sum()
+    total_short_weights = short_weights.sum()
+    assert total_short_weights > 0
+    assert total_long_weights > 0  # Could vary due to leverage.
+
+    target_long_value = total_long_weights * net_liquidation_value
+    target_short_value = total_short_weights * net_liquidation_value
+
+    # Finally, normalize the weights so that it sums up to 1.
+    long_weights = long_weights / total_long_weights
+    short_weights = short_weights / total_short_weights
+
+    long_prices = prices.loc[long_weights.keys()]
+    short_prices = prices.loc[short_weights.keys()]
+
+    def calc_positions(prices, weights, portfolio_value):
+        from pypfopt import DiscreteAllocation
+        da = DiscreteAllocation(weights, prices, total_portfolio_value=portfolio_value)
+        alloc, leftover = da.greedy_portfolio()
+        return alloc
+
+    long_positions = calc_positions(long_prices, long_weights.to_dict(), target_long_value)
+    short_positions = calc_positions(short_prices, short_weights.to_dict(), target_short_value)
+    # Flip the short positions to be negative.
+    short_positions = {ticker: -position for ticker, position in short_positions.items()}
+    positions = {**long_positions, **short_positions}
+    return positions
 
 
 def fetch_ib_contracts(ib: IB, tickers: List[str]) -> Dict[str, Contract]:
@@ -141,7 +175,9 @@ def rebalance(account_number: str, allocations_directory: str, port: int):
 
     if prompt("Use allocation file {}? yes/no".format(file)).lower() != "yes":
         return
+    allocation = allocation[allocation["weight"] != 0]
     allocation: Dict[str, float] = allocation.to_dict()["weight"]
+
     print("allocation", allocation)
     target_tickers = set(allocation.keys())
 
