@@ -22,6 +22,7 @@ pyfolio = "*"
 pandas = "*"
 dash = "*"
 dash-bootstrap-components = "*"
+joblib = "*"
 
 [requires]
 python_version = "3.8"

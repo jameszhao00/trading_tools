@@ -29,16 +29,21 @@ class BacktestResult:
 
 
 class Backtester:
-    def __init__(self, start_date: datetime, end_date=None, max_lookback_in_days: int = 120):
+    def __init__(self, start_date: datetime, end_date=None, max_lookback_in_days: int = 120,
+                 start_when_all_data_is_available=False):
         self.max_lookback_in_days = max_lookback_in_days
         self.start_date = start_date
         self.end_date = end_date
         self.repo = StockDataRepo(start_date - timedelta(days=max_lookback_in_days + ADDITIONAL_LOOKBACK_BUFFER),
                                   end_date)
+        # Whether to start backtesting when all tickers have all data available. Default is to start the backtest when
+        # any tickers have data.
+        self.start_when_all_data_is_available = start_when_all_data_is_available
 
     def backtest(self, long_universe: List[str], short_universe: List[str], portfolio_fn) -> BacktestResult:
         universe = long_universe + short_universe
         universe.sort()
+        assert len(universe) == len(set(universe)), "Universe should be unique!"
         component_returns = self.repo.get_prices(universe).pct_change()[1:]
 
         result_datetime_index = component_returns.index[component_returns.index >= self.start_date]
@@ -55,13 +60,19 @@ class Backtester:
             # Then compute and store today's allocation.
             # Get the data from 11 days in the past to 1 day in the past.
             returns_excluding_today = component_returns.loc[:current_date].iloc[-self.max_lookback_in_days - 1:-1]
-            # Drop any tickers with any missing data.
-            returns_excluding_today = returns_excluding_today.dropna(axis=1)
+            if self.start_when_all_data_is_available:
+                if returns_excluding_today.isnull().values.any():
+                    continue
+            else:
+                # Drop any tickers with any missing data.
+                returns_excluding_today = returns_excluding_today.dropna(axis=1)
 
             # Transparently treat the shorts as longs by inverting their returns.
             for short_ticker in short_universe:
                 returns_excluding_today["SHORT_" + short_ticker] = -1 * returns_excluding_today[short_ticker]
-                del returns_excluding_today[short_ticker]
+                # Maybe this is also in the long universe.
+                if short_ticker not in long_universe:
+                    del returns_excluding_today[short_ticker]
 
             last_allocation, aux_data = portfolio_fn(current_date, returns_excluding_today)
             last_allocation = pd.Series(last_allocation)
@@ -81,6 +92,8 @@ class Backtester:
                 maybe_flip_short_name(ticker): maybe_flip_short_weight(ticker, weight)
                 for ticker, weight in last_allocation.iteritems()
             })
+            # Assert that if a ticker is in both the long universe and the short universe it only has one weight.
+            assert last_allocation.index.is_unique
 
             # Normalize it so longs sum up to 100% weight.
             total_long_weight = last_allocation[last_allocation > 0].sum()
