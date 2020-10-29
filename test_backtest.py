@@ -6,7 +6,7 @@ from pandas import DatetimeIndex
 from pandas._testing import assert_frame_equal, assert_series_equal
 import pandas as pd
 import tempfile
-from backtest import Backtester
+from backtest import Backtester, forecast
 
 
 def noop_set_portfolio(timestamp, returns_excluding_today) -> Tuple[Dict[str, float], object]:
@@ -58,3 +58,18 @@ class TestBacktestResult(TestCase):
                 ["AAPL", "GOOG"], [], noop_set_portfolio)
             file = sut.save_most_recent_allocation(directory, leverage=2)
             assert_frame_equal(pd.read_csv(file), pd.DataFrame({"ticker": ["AAPL", "GOOG"], "weight": [2.0, 0.0]}))
+
+
+class Test(TestCase):
+    def test_forecast(self):
+        s = pd.Series(index=pd.date_range(start='1/1/2018', periods=5, freq='1D'), data=[1, 2, 3, 4, 5])
+        results = forecast(s, forecast_window=5)
+        assert_series_equal(results.predictions,
+                            pd.Series(index=pd.date_range(start='1/6/2018', periods=5, freq='1D').values,
+                                      data=[6.0, 7.0, 8.0, 9.0, 10.0]).rename_axis("Date").rename("yhat"))
+        assert_series_equal(results.lower_confidence_interval,
+                            pd.Series(index=pd.date_range(start='1/6/2018', periods=5, freq='1D').values,
+                                      data=[6.0, 7.0, 8.0, 9.0, 10.0]).rename_axis("Date").rename("yhat_lower"))
+        assert_series_equal(results.upper_confidence_interval,
+                            pd.Series(index=pd.date_range(start='1/6/2018', periods=5, freq='1D').values,
+                                      data=[6.0, 7.0, 8.0, 9.0, 10.0]).rename_axis("Date").rename("yhat_upper"))

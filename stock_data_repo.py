@@ -22,6 +22,9 @@ class StockDataRepo:
 
         if to_fetch:
             prices = yf.download(to_fetch, self.start_date, self.end_date)["Adj Close"]
+            # Sometimes yf returns multiple rows for the same date. All except one of these rows is 100% nan.
+            # Let's drop these 100% nan rows.
+            prices = prices.dropna(axis=0, how='any')
             if len(to_fetch) == 1:
                 # Correct the column name because it's currently Adj Close.
                 prices = pd.DataFrame({to_fetch[0]: prices})

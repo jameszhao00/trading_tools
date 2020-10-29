@@ -9,6 +9,7 @@ import plotly.express as px
 import pandas as pd
 from datetime import datetime
 from stock_data_repo import StockDataRepo
+from fbprophet import Prophet
 
 # Download some additional days of data so we guarantee enough days of lookback.
 ADDITIONAL_LOOKBACK_BUFFER = 10
@@ -45,8 +46,13 @@ class Backtester:
         universe.sort()
         assert len(universe) == len(set(universe)), "Universe should be unique!"
         component_returns = self.repo.get_prices(universe).pct_change()[1:]
+        # Move the start date back if we're missing data.
+        earliest_possible_start_date = component_returns.index[0] + timedelta(days=self.max_lookback_in_days)
+        corrected_start_date = (
+            earliest_possible_start_date if earliest_possible_start_date > self.start_date else self.start_date)
 
-        result_datetime_index = component_returns.index[component_returns.index >= self.start_date]
+        result_datetime_index = component_returns.index[component_returns.index >= corrected_start_date]
+
         allocation_history = pd.DataFrame(index=result_datetime_index, columns=universe,
                                           dtype=np.float)
         returns_history = pd.Series(index=result_datetime_index, dtype=np.float)
@@ -54,6 +60,7 @@ class Backtester:
         last_allocation = {ticker: 0 for ticker in universe}
 
         for current_date in result_datetime_index:
+
             # Compute the NAV using yesterday's allocation history.
             returns_history.loc[current_date] = (component_returns.loc[current_date] * pd.Series(last_allocation)).sum()
 
@@ -66,7 +73,6 @@ class Backtester:
             else:
                 # Drop any tickers with any missing data.
                 returns_excluding_today = returns_excluding_today.dropna(axis=1)
-
             # Transparently treat the shorts as longs by inverting their returns.
             for short_ticker in short_universe:
                 returns_excluding_today["SHORT_" + short_ticker] = -1 * returns_excluding_today[short_ticker]
@@ -108,3 +114,31 @@ class Backtester:
             allocation_history.loc[current_date] = last_allocation
         return BacktestResult(allocation_history=allocation_history, returns_history=returns_history,
                               aux_data_history=aux_data_history, component_returns=component_returns)
+
+
+@dataclass
+class ForecastResults:
+    predictions: pd.Series
+    lower_confidence_interval: pd.Series
+    upper_confidence_interval: pd.Series
+    raw_forecast: pd.DataFrame
+    prophet_instance: Prophet
+
+
+def forecast(series: pd.Series, forecast_window=30, confidence_interval=.95) -> ForecastResults:
+    df = pd.DataFrame({
+        "y": series.values,
+        "ds": series.index
+    })
+    m = Prophet(yearly_seasonality=False, weekly_seasonality=False, daily_seasonality=False,
+                interval_width=confidence_interval)
+    m.fit(df)
+    future = m.make_future_dataframe(periods=forecast_window)
+    forecast: pd.DataFrame = m.predict(future)
+    # Slice just the future and set the axis.
+    postprocessed_forecast = forecast.set_index("ds").rename_axis("Date")[series.index[-1]:].iloc[1:]
+    return ForecastResults(predictions=postprocessed_forecast["yhat"],
+                           lower_confidence_interval=postprocessed_forecast["yhat_lower"],
+                           upper_confidence_interval=postprocessed_forecast["yhat_upper"],
+                           raw_forecast=forecast,
+                           prophet_instance=m)

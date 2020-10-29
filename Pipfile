@@ -23,6 +23,9 @@ pandas = "*"
 dash = "*"
 dash-bootstrap-components = "*"
 joblib = "*"
+pmdarima = "*"
+pystan = "*"
+fbprophet = "*"
 
 [requires]
 python_version = "3.8"
