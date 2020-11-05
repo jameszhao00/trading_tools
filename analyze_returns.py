@@ -3288,7 +3288,8 @@ UNIVERSE = [
     "ZYXI",
 ]
 
-UNIVERSE = set([
+UNIVERSE = UNIVERSE + list(set([
+    "CQQQ"
     "ACES",
     "AIQ",
     "AMOM",
@@ -3412,8 +3413,7 @@ UNIVERSE = set([
     "XLK",
     "XT",
     "YLCO",
-    # "CHB",  Not enough data.
-])
+]))
 
 LONG_FACTOR_UNIVERSE = ["VXX"]
 SHORT_FACTOR_UNIVERSE = [
