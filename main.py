@@ -38,18 +38,14 @@ def calculate_target_positions(net_liquidation_value: float,
 
     total_long_weights = long_weights.sum()
     total_short_weights = short_weights.sum()
-    assert total_short_weights > 0
     assert total_long_weights > 0  # Could vary due to leverage.
 
     target_long_value = total_long_weights * net_liquidation_value
-    target_short_value = total_short_weights * net_liquidation_value
 
     # Finally, normalize the weights so that it sums up to 1.
     long_weights = long_weights / total_long_weights
-    short_weights = short_weights / total_short_weights
 
     long_prices = prices.loc[long_weights.keys()]
-    short_prices = prices.loc[short_weights.keys()]
 
     def calc_positions(prices, weights, portfolio_value):
         from pypfopt import DiscreteAllocation
@@ -58,10 +54,16 @@ def calculate_target_positions(net_liquidation_value: float,
         return alloc
 
     long_positions = calc_positions(long_prices, long_weights.to_dict(), target_long_value)
-    short_positions = calc_positions(short_prices, short_weights.to_dict(), target_short_value)
-    # Flip the short positions to be negative.
-    short_positions = {ticker: -position for ticker, position in short_positions.items()}
-    positions = {**long_positions, **short_positions}
+    positions = long_positions
+    if total_short_weights > 0:
+        target_short_value = total_short_weights * net_liquidation_value
+        short_weights = short_weights / total_short_weights
+        short_prices = prices.loc[short_weights.keys()]
+        short_positions = calc_positions(short_prices, short_weights.to_dict(), target_short_value)
+        # Flip the short positions to be negative.
+        short_positions = {ticker: -position for ticker, position in short_positions.items()}
+        for (ticker, weight) in short_positions.items():
+            positions[ticker] = weight
     return positions
 
 

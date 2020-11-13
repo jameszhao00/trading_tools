@@ -3421,7 +3421,7 @@ SHORT_FACTOR_UNIVERSE = [
     "IWF",  # Growth.
     "IWM",  # Small cap.
     "MTUM",  # Momentum.
-    "VLUE",  # Value.
+    "VLUE",
     # "USMV",  # Low volatility.
     # "SDY",  # Dividend.
     # Sectors.
@@ -3433,7 +3433,7 @@ SHORT_FACTOR_UNIVERSE = [
 def calculate_for_one_ticker(output_directory: str, ticker: str):
     print("Processing ", ticker)
     backtester = Backtester(datetime(2015, 1, 1, 0, 0, 0), start_when_all_data_is_available=True,
-                            max_lookback_in_days=240)
+                            max_lookback_in_days=120)
     r = backtester.backtest([ticker] + LONG_FACTOR_UNIVERSE, SHORT_FACTOR_UNIVERSE, min_variance_portfolio)
     alpha_csv_path = join(output_directory, ticker + "_alpha_returns.csv")
     r.returns_history.rename("alpha").to_csv(alpha_csv_path)

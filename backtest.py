@@ -25,6 +25,7 @@ class BacktestResult:
     def save_most_recent_allocation(self, directory: str, leverage=1.0):
         path = os.path.join(directory, datetime.now().strftime("optimized-allocation-%Y-%m-%d__%H-%M-%S") + ".csv")
         allocation = self.allocation_history.iloc[-1] * leverage
+        allocation = allocation[allocation != 0]
         allocation.rename("weight").to_csv(path, index_label=["ticker"])
         return path
 

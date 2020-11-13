@@ -16,6 +16,7 @@ class MinVarianceAuxiliaryData:
 def min_variance_portfolio(timestamp, returns_excluding_today) -> Dict[str, float]:
     # print("Optimizing portfolio for", timestamp)
     # print("returns_excluding_today", returns_excluding_today)
+    # S = risk_models.semicovariance(returns_excluding_today, returns_data=True)
     S = risk_models.CovarianceShrinkage(returns_excluding_today, returns_data=True).ledoit_wolf()
     ef = EfficientFrontier(np.zeros(returns_excluding_today.columns.size), S)
     # ef.add_objective(objective_functions.L2_reg, gamma=.05)
